@@ -11,9 +11,6 @@ import {
 const app = express();
 app.use(express.json());
 
-/* ==============================
-   Custom Healthcare Provider
-================================= */
 class HealthcareProvider implements Provider {
   readonly metadata = { name: 'Healthcare Feature Provider' };
 
@@ -60,9 +57,7 @@ class HealthcareProvider implements Provider {
   }
 }
 
-/* ==============================
-   Start Server
-================================= */
+
 async function startServer() {
   await OpenFeature.setProviderAndWait(new HealthcareProvider());
 
@@ -103,5 +98,6 @@ async function startServer() {
     console.log('Healthcare Server running on http://localhost:4000');
   });
 }
+
 
 startServer();
