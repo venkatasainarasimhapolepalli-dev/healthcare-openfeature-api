@@ -1,0 +1,107 @@
+import express, { Request, Response } from 'express';
+import {
+  OpenFeature,
+  Provider,
+  ResolutionDetails,
+  EvaluationContext,
+  JsonValue,
+  Logger,
+} from '@openfeature/server-sdk';
+
+const app = express();
+app.use(express.json());
+
+/* ==============================
+   Custom Healthcare Provider
+================================= */
+class HealthcareProvider implements Provider {
+  readonly metadata = { name: 'Healthcare Feature Provider' };
+
+  private flags = {
+    premium_chat_enabled: true, // toggle this to false to disable globally
+  };
+
+  async initialize(): Promise<void> {}
+
+  resolveBooleanEvaluation(
+    flagKey: string,
+    defaultValue: boolean,
+    context: EvaluationContext,
+    logger: Logger
+  ): ResolutionDetails<boolean> {
+    if (flagKey === 'premium_chat_enabled') {
+      const isPremium = context.isPremium as boolean;
+
+      if (!isPremium) {
+        return { value: false };
+      }
+    }
+
+    const value = this.flags[flagKey as keyof typeof this.flags];
+
+    if (value === undefined) {
+      logger.warn(`Flag not found: ${flagKey}`);
+      return { value: defaultValue };
+    }
+
+    return { value };
+  }
+
+  resolveStringEvaluation(): ResolutionDetails<string> {
+    return { value: '' };
+  }
+
+  resolveNumberEvaluation(): ResolutionDetails<number> {
+    return { value: 0 };
+  }
+
+  resolveObjectEvaluation<T extends JsonValue>(): ResolutionDetails<T> {
+    return { value: {} as T };
+  }
+}
+
+/* ==============================
+   Start Server
+================================= */
+async function startServer() {
+  await OpenFeature.setProviderAndWait(new HealthcareProvider());
+
+  app.post('/chat-with-doctor', async (req: Request, res: Response) => {
+    const { userId, isPremium } = req.body;
+
+    await OpenFeature.setContext({
+      targetingKey: userId,
+      isPremium,
+    });
+
+    const client = OpenFeature.getClient();
+
+    const chatEnabled = await client.getBooleanValue(
+      'premium_chat_enabled',
+      false
+    );
+
+    if (!chatEnabled) {
+      return res.status(403).json({
+        success: false,
+        message: 'Chat feature available only for premium users.',
+      });
+    }
+
+    // Simulated doctor response
+    res.json({
+      success: true,
+      message: 'You are now connected to a doctor.',
+      doctor: {
+        name: 'Dr. Sharma',
+        specialization: 'Cardiologist',
+      },
+    });
+  });
+
+  app.listen(4000, () => {
+    console.log('Healthcare Server running on http://localhost:4000');
+  });
+}
+
+startServer();
